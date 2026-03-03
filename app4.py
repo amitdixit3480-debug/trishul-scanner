@@ -26,7 +26,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🔱 GCD Trishul: Ultimate Date-to-Date Scanner")
+st.title("🔱Trishul🔱: Ultimate Date-to-Date Scanner")
 
 # Nifty 50 List
 nifty50_list = "ADANIENT.NS, ADANIPORTS.NS, APOLLOHOSP.NS, ASIANPAINT.NS, AXISBANK.NS, BAJAJ-AUTO.NS, BAJFINANCE.NS, BAJAJFINSV.NS, BPCL.NS, BHARTIARTL.NS, BRITANNIA.NS, CIPLA.NS, COALINDIA.NS, DIVISLAB.NS, DRREDDY.NS, EICHERMOT.NS, GRASIM.NS, HCLTECH.NS, HDFCBANK.NS, HDFCLIFE.NS, HEROMOTOCO.NS, HINDALCO.NS, HINDUNILVR.NS, ICICIBANK.NS, ITC.NS, INDUSINDBK.NS, INFY.NS, JSWSTEEL.NS, KOTAKBANK.NS, LTIM.NS, LT.NS, M&M.NS, MARUTI.NS, NTPC.NS, NESTLEIND.NS, ONGC.NS, POWERGRID.NS, RELIANCE.NS, SBILIFE.NS, SBIN.NS, SUNPHARMA.NS, TCS.NS, TATACONSUM.NS, TATAMOTORS.NS, TATASTEEL.NS, TECHM.NS, TITAN.NS, ULTRACEMCO.NS, WIPRO.NS"
@@ -111,3 +111,4 @@ if run_btn:
     prog.empty()
     display_results(sorted(all_bulls, key=lambda x: x['WR'], reverse=True), "📈 Bullish Opportunity (बाय सेटअप)", "bull-card")
     display_results(sorted(all_bears, key=lambda x: x['WR'], reverse=True), "📉 Bearish Opportunity (सेल सेटअप)", "bear-card")
+
