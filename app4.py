@@ -1,114 +1,71 @@
-import os
-import sys
-import warnings
-
-warnings.simplefilter(action='ignore', category=FutureWarning)
-os.environ['STREAMLIT_GATHER_USAGE_STATS'] = 'false'
-
 import streamlit as st
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="Trishul Ultimate Scanner", layout="wide")
+# मोबाइल और डार्क मोड सेटिंग्स
+st.set_page_config(page_title="🔱 GCD Trishul Pro", layout="wide")
 
-# CSS for better UI
-st.markdown("""
-    <style>
-    .reportview-container { background: #f0f2f6; }
-    .bull-card { border-left: 10px solid #166534; background-color: #f0fdf4; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-    .bear-card { border-left: 10px solid #991b1b; background-color: #fef2f2; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-    .trishul-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .trishul-table th { background-color: #334155; color: white; padding: 8px; }
-    .trishul-table td { border: 1px solid #cbd5e1; text-align: center; padding: 6px; font-weight: bold; }
-    .pos { color: #166534; background-color: #dcfce7; }
-    .neg { color: #991b1b; background-color: #fee2e2; }
-    </style>
-    """, unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #FFD700;'>🔱 GCD Trishul: Accuracy & Avg Ret Scanner</h1>", unsafe_allow_html=True)
 
-st.title("🔱Trishul🔱: Ultimate Date-to-Date Scanner")
-
-# Nifty 50 List
-nifty50_list = "ADANIENT.NS, ADANIPORTS.NS, APOLLOHOSP.NS, ASIANPAINT.NS, AXISBANK.NS, BAJAJ-AUTO.NS, BAJFINANCE.NS, BAJAJFINSV.NS, BPCL.NS, BHARTIARTL.NS, BRITANNIA.NS, CIPLA.NS, COALINDIA.NS, DIVISLAB.NS, DRREDDY.NS, EICHERMOT.NS, GRASIM.NS, HCLTECH.NS, HDFCBANK.NS, HDFCLIFE.NS, HEROMOTOCO.NS, HINDALCO.NS, HINDUNILVR.NS, ICICIBANK.NS, ITC.NS, INDUSINDBK.NS, INFY.NS, JSWSTEEL.NS, KOTAKBANK.NS, LTIM.NS, LT.NS, M&M.NS, MARUTI.NS, NTPC.NS, NESTLEIND.NS, ONGC.NS, POWERGRID.NS, RELIANCE.NS, SBILIFE.NS, SBIN.NS, SUNPHARMA.NS, TCS.NS, TATACONSUM.NS, TATAMOTORS.NS, TATASTEEL.NS, TECHM.NS, TITAN.NS, ULTRACEMCO.NS, WIPRO.NS"
+@st.cache_data(ttl=3600)
+def fetch_data(ticker):
+    try:
+        # 15 साल का डेटा ताकि टाइम साइकिल गणना सटीक रहे
+        return yf.download(ticker, period="15y", interval="1d", progress=False, auto_adjust=True)
+    except: return None
 
 with st.sidebar:
-    st.header("🔱 Scanner Config")
-    c1, c2 = st.columns(2)
-    with c1:
-        s_d, s_m = st.number_input("Start Day", 1, 31, 1), st.number_input("Start Month", 1, 12, 3)
-    with c2:
-        e_d, e_m = st.number_input("End Day", 1, 31, 20), st.number_input("End Month", 1, 12, 4)
+    st.header("⚙️ Scanner Filters")
+    s_d, s_m = st.number_input("Start Day", 1, 31, 1), st.number_input("Start Month", 1, 12, 3)
+    e_d, e_m = st.number_input("End Day", 1, 31, 20), st.number_input("End Month", 1, 12, 4)
     
-    min_acc = st.slider("Min Accuracy (%)", 50, 100, 70)
-    if st.button("🎯 Load NIFTY 50"): st.session_state.stocks = nifty50_list
-    user_stocks = st.text_area("Stocks List", value=st.session_state.get('stocks', "RELIANCE.NS, TCS.NS"), height=150)
-    run_btn = st.button("🚀 Analyze Strategy")
+    st.divider()
+    min_acc = st.slider("Minimum Accuracy %", 50, 100, 70)
+    # नया Avg Return फ़िल्टर
+    min_avg_ret = st.slider("Minimum Avg Return %", 0, 20, 3) 
+    
+    stocks_input = st.text_area("Stocks List (NSE)", "RELIANCE.NS, TCS.NS, INFY.NS, SBIN.NS, ICICIBANK.NS, HDFCBANK.NS, TATAMOTORS.NS, ITC.NS")
+    btn = st.button("🔱 Analyze Time Cycle")
 
-def display_results(data, title, css_class):
-    if not data: return
-    st.markdown(f"<div class='{css_class}'><h2>{title}</h2></div>", unsafe_allow_html=True)
-    df = pd.DataFrame(data)
-    # Reorder columns to show Avg Return next to Win Rate
-    cols = ['Stock', 'WR', 'Avg_Ret'] + [str(y) for y in range(datetime.now().year-10, datetime.now().year)]
-    df = df[cols]
-    
-    html = '<table class="trishul-table"><tr>'
-    for col in df.columns: html += f'<th>{col}</th>'
-    html += '</tr>'
-    
-    for _, row in df.iterrows():
-        html += '<tr>'
-        for col in df.columns:
-            val = row[col]
-            if col == 'Stock' or col == 'WR' or col == 'Avg_Ret':
-                html += f'<td>{val}{"%" if col != "Stock" else ""}</td>'
-            else:
-                c = "pos" if val > 0 else "neg"
-                html += f'<td class="{c}">{val}%</td>'
-        html += '</tr>'
-    st.write(html + '</table>', unsafe_allow_html=True)
-
-if run_btn:
-    all_bulls, all_bears = [], []
-    curr_yr = datetime.now().year
+if btn:
+    tickers = [x.strip() for x in stocks_input.split(',')]
+    final_data = []
     prog = st.progress(0)
-    s_list = [s.strip() for s in user_stocks.split(',')]
-    
-    for i, ticker in enumerate(s_list):
-        try:
-            df = yf.download(ticker, period="11y", progress=False, auto_adjust=True)
-            if df.empty: continue
-            
-            res = {'Stock': ticker.replace('.NS', ''), 'Wins': 0, 'Losses': 0, 'Returns': []}
-            for yr in range(curr_yr - 10, curr_yr):
+
+    for i, t in enumerate(tickers):
+        df = fetch_data(t)
+        if df is not None and not df.empty:
+            res = {'Stock': t.replace('.NS', ''), 'Wins': 0, 'Total': 0, 'Total_Ret': 0}
+            for yr in range(datetime.now().year - 10, datetime.now().year):
                 try:
-                    sd, ed = datetime(yr, s_m, s_d), datetime(yr, e_m, e_d)
-                    si = df.index.get_indexer([sd], method='ffill')[0]
-                    ei = df.index.get_indexer([ed], method='ffill')[0]
-                    if si != -1 and ei != -1:
-                        ret = ((float(df.iloc[ei]['Close']) - float(df.iloc[si]['Open'])) / float(df.iloc[si]['Open'])) * 100
-                        res[str(yr)] = round(ret, 2)
-                        res['Returns'].append(ret)
-                        if ret > 0: res['Wins'] += 1
-                        else: res['Losses'] += 1
+                    start, end = datetime(yr, s_m, s_d), datetime(yr, e_m, e_d)
+                    p1 = df.loc[df.index >= start].iloc[0]['Open']
+                    p2 = df.loc[df.index <= end].iloc[-1]['Close']
+                    diff = round(((p2 - p1) / p1) * 100, 2)
+                    res[str(yr)] = diff
+                    if diff > 0: res['Wins'] += 1
+                    res['Total'] += 1
+                    res['Total_Ret'] += diff
                 except: continue
             
-            if res['Returns']:
-                avg_ret = round(sum(res['Returns']) / len(res['Returns']), 2)
-                res['Avg_Ret'] = avg_ret
-                bull_rate = int((res['Wins'] / len(res['Returns'])) * 100)
-                bear_rate = int((res['Losses'] / len(res['Returns'])) * 100)
+            if res['Total'] > 0:
+                acc = int((res['Wins']/res['Total'])*100)
+                avg_r = round(res['Total_Ret'] / res['Total'], 2)
                 
-                if bull_rate >= min_acc:
-                    res['WR'] = bull_rate
-                    all_bulls.append(res)
-                elif bear_rate >= min_acc:
-                    res['WR'] = bear_rate
-                    all_bears.append(res)
-        except: continue
-        prog.progress((i + 1) / len(s_list))
-    
-    prog.empty()
-    display_results(sorted(all_bulls, key=lambda x: x['WR'], reverse=True), "📈 Bullish Opportunity (बाय सेटअप)", "bull-card")
-    display_results(sorted(all_bears, key=lambda x: x['WR'], reverse=True), "📉 Bearish Opportunity (सेल सेटअप)", "bear-card")
+                # Accuracy और Avg Return दोनों का फ़िल्टर
+                if acc >= min_acc and avg_r >= min_avg_ret:
+                    res['Accuracy %'] = acc
+                    res['Avg_Ret %'] = avg_r
+                    final_data.append(res)
+        prog.progress((i + 1) / len(tickers))
 
+    if final_data:
+        display_df = pd.DataFrame(final_data).sort_values('Avg_Ret %', ascending=False)
+        st.subheader(f"📈 Results: Accuracy > {min_acc}% & Avg Ret > {min_avg_ret}%")
+        
+        # Avg_Ret और Accuracy को पहले दिखाना
+        cols = ['Stock', 'Accuracy %', 'Avg_Ret %'] + [str(y) for y in range(datetime.now().year-10, datetime.now().year)]
+        st.dataframe(display_df[cols].style.background_gradient(cmap='RdYlGn', subset=['Avg_Ret %']).format(precision=2))
+    else:
+        st.error("❌ कोई स्टॉक इन दोनों फिल्टर्स (Accuracy + Avg Return) में फिट नहीं बैठा।")
