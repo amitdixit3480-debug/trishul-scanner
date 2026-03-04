@@ -1,97 +1,84 @@
 import streamlit as st
+import yfinance as yf
 import pandas as pd
-import numpy as np
-import gspread
-from google.oauth2.service_account import Credentials
-from datetime import datetime
+from datetime import datetime, timedelta
 
-st.set_page_config(page_title="🔱 TRISHUL Time Weapon", layout="wide")
+# Page Setup for Mobile
+st.set_page_config(page_title="Trishul Time Cycle", layout="centered")
 
-# --- CONFIG ---
-CONFIG = [
-    {"id": "1sYZoR__O5EQIKdexmnJdRs84gQ_gGPe-osYENtl7YsE", "sheet": "ALL_STOCKS_RAW_DATA"},
-    {"id": "15DTT69OOyWSqFOIPIDkNIagcfzdnmcu690AdC0BFR2k", "sheet": "ALL_STOCKS_RAW_DATA2"},
-    {"id": "1U1sLZRtkGli-GNAN6cZNGHeOfee8uqSQUJK8K8fhEWQ", "sheet": "ALL_STOCKS_RAW_DATA3"}
-]
+st.markdown("""
+    <style>
+    .stButton>button { width: 100%; border-radius: 20px; background-color: #FF4B4B; color: white; }
+    .reportview-container { background: #0E1117; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- AUTH ---
-@st.cache_resource
-def connect_gsheet():
-    creds = Credentials.from_service_account_file(
-        "service_account.json",
-        scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"]
-    )
-    return gspread.authorize(creds)
+st.title("🔱 GCD Trishul: Time Cycle Pro")
 
-# --- LOAD DATA ---
-@st.cache_data(ttl=3600)
-def load_data():
-    gc = connect_gsheet()
-    all_data = []
+# --- Performance Caching ---
+@st.cache_data(ttl=3600) # 1 घंटे तक डेटा बार-बार डाउनलोड नहीं होगा
+def get_data(tickers):
+    data = yf.download(tickers, period="12y", interval="1d", progress=False, group_by='ticker')
+    return data
 
-    for file in CONFIG:
-        sh = gc.open_by_key(file["id"]).worksheet(file["sheet"])
-        data = sh.get_all_records()
-        df = pd.DataFrame(data)
-        all_data.append(df)
+# --- Sidebar Filters ---
+with st.sidebar:
+    st.header("⚙️ Cycle Settings")
+    s_d = st.number_input("Start Day", 1, 31, 1)
+    s_m = st.number_input("Start Month", 1, 12, 3)
+    e_d = st.number_input("End Day", 1, 31, 20)
+    e_m = st.number_input("End Month", 1, 12, 4)
+    
+    min_acc = st.slider("Min Win Rate (%)", 50, 100, 70)
+    min_ret = st.slider("Min Avg Return (%)", 1, 20, 3)
+    
+    # NIFTY 500 Sample (More stocks)
+    nifty_universe = "RELIANCE.NS, TCS.NS, INFY.NS, HDFCBANK.NS, ICICIBANK.NS, SBIN.NS, BHARTIARTL.NS, AXISBANK.NS, ITC.NS, KOTAKBANK.NS, LT.NS, MARUTI.NS, SUNPHARMA.NS, TITAN.NS, TATAMOTORS.NS"
+    stocks_input = st.text_area("Stock List", value=nifty_universe, height=150)
 
-    master = pd.concat(all_data)
-    master["Date"] = pd.to_datetime(master["Date"])
-    master = master.sort_values(["Stock Name", "Date"])
+# --- Analysis Logic ---
+if st.button("🔱 Analyze Time Cycle"):
+    tickers = [s.strip() for s in stocks_input.split(',')]
+    all_data = get_data(tickers)
+    final_results = []
+    
+    curr_yr = datetime.now().year
+    
+    for ticker in tickers:
+        try:
+            df = all_data[ticker] if len(tickers) > 1 else all_data
+            if df.empty: continue
+            
+            wins, total_ret = 0, []
+            
+            for yr in range(curr_yr - 10, curr_yr):
+                try:
+                    # Time Cycle Matching
+                    sd, ed = datetime(yr, s_m, s_d), datetime(yr, e_m, e_d)
+                    # Nearest Trading Day
+                    si = df.index.asof(sd)
+                    ei = df.index.asof(ed)
+                    
+                    if si and ei:
+                        ret = ((df.loc[ei]['Close'] - df.loc[si]['Open']) / df.loc[si]['Open']) * 100
+                        total_ret.append(ret)
+                        if ret > 0: wins += 1
+                except: continue
+                
+            if total_ret:
+                wr = (wins / len(total_ret)) * 100
+                avg_r = sum(total_ret) / len(total_ret)
+                
+                if wr >= min_acc and avg_r >= min_ret:
+                    final_results.append({
+                        "Stock": ticker.replace(".NS", ""),
+                        "Win Rate": f"{int(wr)}%",
+                        "Avg Return": f"{round(avg_r, 2)}%"
+                    })
+        except: continue
 
-    return master
-
-# --- TIME ENGINE ---
-def run_time_engine(df):
-
-    results = []
-
-    for stock, data in df.groupby("Stock Name"):
-        data = data.sort_values("Date")
-        closes = data["Close"].values
-
-        if len(closes) < 2000:
-            continue
-
-        best_win = 0
-        best_avg = 0
-        best_window = 0
-
-        for window in range(10, 46):
-            rets = (closes[window:] - closes[:-window]) / closes[:-window] * 100
-            if len(rets) < 50:
-                continue
-
-            win_rate = (rets > 0).mean() * 100
-            avg_ret = rets.mean()
-
-            if win_rate > best_win and avg_ret > best_avg:
-                best_win = win_rate
-                best_avg = avg_ret
-                best_window = window
-
-        if best_win >= 70 and best_avg >= 3:
-            score = (best_win * 0.4) + (best_avg * 0.3)
-            results.append([stock, best_window, best_win, best_avg, score])
-
-    result_df = pd.DataFrame(results, columns=[
-        "Stock", "Best Window (Days)", "Win %", "Avg %", "Score"
-    ])
-
-    return result_df.sort_values("Score", ascending=False)
-
-# --- UI ---
-st.title("🔱 TRISHUL Time-Cycle Weapon")
-st.caption("Pure Statistical Seasonal Edge Engine")
-
-if st.button("🚀 Run Full Scan"):
-
-    with st.spinner("Syncing Google Sheets & Scanning 500 Stocks..."):
-        data = load_data()
-        result = run_time_engine(data)
-
-    if not result.empty:
-        st.success(f"🎯 {len(result)} High Probability Stocks Found")
-        st.dataframe(result, use_container_width=True)
+    if final_results:
+        st.success(f"🎯 {len(final_results)} जैकपॉट स्टॉक्स मिले!")
+        st.table(pd.DataFrame(final_results))
     else:
-        st.error("❌ No Stocks Met Criteria")
+        st.error("❌ कोई स्टॉक इन दोनों फिल्टर्स में फिट नहीं बैठा।")
