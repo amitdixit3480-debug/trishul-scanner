@@ -1,59 +1,80 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 
-# --- Page Config ---
-st.set_page_config(page_title=" AMIT Trishul Pro", layout="wide")
+# --- पेज सेटअप (Premium Mobile Look) ---
+st.set_page_config(page_title="महाकाल त्रिशूल Pro Max", layout="wide")
 
-# --- Custom Styling (Visual Enhancement) ---
+# --- विजुअल स्टाइलिंग (Dark Theme with Gold & Red) ---
 st.markdown("""
     <style>
-    .stButton>button { width: 100%; border-radius: 10px; height: 3em; background-color: #007bff; color: white; font-weight: bold; }
-    .stTable { background-color: #1e1e1e; border-radius: 10px; }
+    .stButton>button { 
+        width: 100%; 
+        border-radius: 12px; 
+        height: 3.5em; 
+        background-image: linear-gradient(to right, #800000, #ff4500, #ff8c00); 
+        color: white; 
+        border: none; 
+        font-weight: bold;
+        font-size: 18px;
+    }
+    .stDataFrame { border: 2px solid #ff4500; border-radius: 15px; }
+    h1 { color: #ff4500; text-align: center; font-family: 'Segoe UI'; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🔱 GCD Trishul: Universal Cycle Scanner")
+st.title("🔱 महाकाल त्रिशूल: Universal Cycle Scanner")
 
-# --- Indices Data ---
+# --- स्टॉक लिस्ट डेटा (Pre-loaded for Buttons) ---
 N50 = "RELIANCE.NS, TCS.NS, INFY.NS, HDFCBANK.NS, ICICIBANK.NS, SBIN.NS, BHARTIARTL.NS, AXISBANK.NS, ITC.NS, KOTAKBANK.NS, LT.NS, MARUTI.NS, SUNPHARMA.NS, TITAN.NS, TATAMOTORS.NS, TATASTEEL.NS, NTPC.NS, M&M.NS, HCLTECH.NS, ASIANPAINT.NS"
-N100 = N50 + ", ADANIENT.NS, ADANIPORTS.NS, BPCL.NS, COALINDIA.NS, HINDALCO.NS, IOC.NS, JSWSTEEL.NS, ONGC.NS, POWERGRID.NS, ULTRACEMCO.NS"
-N500_SAMPLE = N100 + ", YESBANK.NS, ZOMATO.NS, IDEA.NS, RVNL.NS, IRFC.NS, SUZLON.NS"
+N100 = N50 + ", ADANIENT.NS, ADANIPORTS.NS, BPCL.NS, COALINDIA.NS, HINDALCO.NS, IOC.NS, JSWSTEEL.NS, ONGC.NS, POWERGRID.NS, ULTRACEMCO.NS, NESTLEIND.NS, TATACONSUM.NS, WIPRO.NS, APOLLOHOSP.NS, DLF.NS"
+N500_SELECT = N100 + ", YESBANK.NS, ZOMATO.NS, RVNL.NS, IRFC.NS, SUZLON.NS, IDEA.NS, NHPC.NS, SJVN.NS, IREDA.NS, BHEL.NS, BEL.NS, MAZDOCK.NS, JSWENERGY.NS, POLYCAB.NS"
 
-# --- Sidebar Filters ---
+# --- मुख्य इंटरफ़ेस ---
+st.subheader("🚩 मार्केट सेगमेंट चुनें")
+col1, col2, col3 = st.columns(3)
+
+if 'current_list' not in st.session_state:
+    st.session_state.current_list = N50
+
+if col1.button("🕉️ NIFTY 50"): st.session_state.current_list = N50
+if col2.button("🔱 NIFTY 100"): st.session_state.current_list = N100
+if col3.button("🔥 NIFTY 500"): st.session_state.current_list = N500_SELECT
+
+# खाली बॉक्स: अपनी इच्छा से कोई भी स्टॉक जोड़ें
+stocks_input = st.text_area("स्टॉक लिस्ट (Search or Edit)", value=st.session_state.current_list, height=100)
+
+# --- साइडबार: डायनेमिक कैलेंडर और फिल्टर्स ---
 with st.sidebar:
-    st.header("⚙️ Scan Parameters")
-    col1, col2 = st.columns(2)
-    with col1:
-        s_d = st.number_input("Start Day", 1, 31, 1)
-        s_m = st.number_input("Start Month", 1, 12, 3)
-    with col2:
-        e_d = st.number_input("End Day", 1, 31, 20)
-        e_m = st.number_input("End Month", 1, 12, 4)
+    st.image("https://img.icons8.com/color/96/000000/shiva.png", width=100)
+    st.header("⚙️ महाकाल सेटिंग्स")
     
-    min_acc = st.slider("Min Accuracy (%)", 0, 100, 70)
-    min_ret = st.slider("Min Avg Return (%)", 0, 20, 3)
+    # डायनेमिक डेट पिकर (Calendar)
+    date_range = st.date_input(
+        "इच्छा अनुसार समय चक्र चुनें",
+        [datetime(datetime.now().year, 3, 1), datetime(datetime.now().year, 4, 20)],
+        format="DD/MM/YYYY"
+    )
 
-# --- Stock List Logic ---
-st.subheader("📁 Select Universe or Add Stocks")
-c1, c2, c3 = st.columns(3)
+    if len(date_range) == 2:
+        start_dt, end_dt = date_range
+        s_d, s_m = start_dt.day, start_dt.month
+        e_d, e_m = end_dt.day, end_dt.month
+    else:
+        st.warning("कैलेंडर में दोनों तारीखें चुनें।")
+        st.stop()
 
-# State management for buttons
-if 'stock_list' not in st.session_state:
-    st.session_state.stock_list = N50
+    st.divider()
+    min_acc = st.slider("न्यूनतम सटीकता (Win Rate %)", 0, 100, 70)
+    min_ret = st.slider("न्यूनतम औसत रिटर्न %", 0, 20, 3)
 
-if c1.button("🚀 NIFTY 50"): st.session_state.stock_list = N50
-if c2.button("🌟 NIFTY 100"): st.session_state.stock_list = N100
-if c3.button("🔥 NIFTY 500"): st.session_state.stock_list = N500_SAMPLE
-
-stocks_input = st.text_area("Stocks to Scan (NSE Codes)", value=st.session_state.stock_list, height=100)
-
-# --- Analysis ---
-if st.button("🔱 Start Trishul Analysis"):
-    tickers = [s.strip() for s in stocks_input.split(',')]
-    with st.spinner('Scanning Market Cycles...'):
-        all_data = yf.download(tickers, period="10y", interval="1d", progress=False, group_by='ticker')
+# --- स्कैनिंग लॉजिक ---
+if st.button("🚩 महाकाल त्रिशूल विश्लेषण शुरू करें"):
+    tickers = [s.strip() for s in stocks_input.split(',') if s.strip()]
+    
+    with st.spinner('महाकाल कृपा से डेटा स्कैन हो रहा है...'):
+        all_data = yf.download(tickers, period="12y", interval="1d", progress=False, group_by='ticker')
         results = []
         curr_yr = datetime.now().year
 
@@ -61,42 +82,37 @@ if st.button("🔱 Start Trishul Analysis"):
             try:
                 df = all_data[ticker] if len(tickers) > 1 else all_data
                 if df.empty: continue
-                wins, annual_rets = 0, {}
                 
+                wins, yearly_data = 0, {}
                 for yr in range(curr_yr - 10, curr_yr):
                     try:
                         sd, ed = datetime(yr, s_m, s_d), datetime(yr, e_m, e_d)
-                        si = df.index.asof(sd)
-                        ei = df.index.asof(ed)
-                        ret = ((df.loc[ei]['Close'] - df.loc[si]['Open']) / df.loc[si]['Open']) * 100
-                        annual_rets[str(yr)] = round(ret, 2)
-                        if ret > 0: wins += 1
+                        si, ei = df.index.asof(sd), df.index.asof(ed)
+                        if si and ei:
+                            r = ((df.loc[ei]['Close'] - df.loc[si]['Open']) / df.loc[si]['Open']) * 100
+                            yearly_data[str(yr)] = round(r, 2)
+                            if r > 0: wins += 1
                     except: continue
 
-                if annual_rets:
-                    acc = (wins / len(annual_rets)) * 100
-                    avg_r = sum(annual_rets.values()) / len(annual_rets)
+                if yearly_data:
+                    accuracy = (wins / len(yearly_data)) * 100
+                    avg_return = sum(yearly_data.values()) / len(yearly_data)
                     
-                    if acc >= min_acc and avg_r >= min_ret:
-                        row = {"Stock": ticker.replace(".NS",""), "Win Rate": f"{int(acc)}%", "Avg Return": f"{round(avg_r,2)}%"}
-                        row.update(annual_rets)
-                        results.append(row)
+                    if accuracy >= min_acc and avg_return >= min_ret:
+                        res_row = {"Stock": ticker.replace(".NS",""), "Accuracy": f"{int(accuracy)}%", "Avg Return": f"{round(avg_return, 2)}%"}
+                        res_row.update(yearly_data)
+                        results.append(res_row)
             except: continue
 
+        # --- रिज़ल्ट टेबल (Color Coded like image_809e75.png) ---
         if results:
-            res_df = pd.DataFrame(results)
-            
-            # --- Visual Styling (Like image_809e75.png) ---
-            def color_returns(val):
+            final_df = pd.DataFrame(results)
+            def color_rets(val):
                 if isinstance(val, float):
-                    color = '#c6efce' if val > 0 else '#ffc7ce'
-                    return f'background-color: {color}; color: black'
+                    return 'background-color: #c6efce; color: #006100;' if val > 0 else 'background-color: #ffc7ce; color: #9c0006;'
                 return ''
 
-            st.success(f"🎯 {len(results)} जैकपॉट स्टॉक्स मिले!")
-            st.dataframe(res_df.style.applymap(color_returns, subset=res_df.columns[3:]))
+            st.success(f"🔱 महाकाल की कृपा से {len(results)} जैकपॉट स्टॉक्स मिले!")
+            st.dataframe(final_df.style.applymap(color_rets, subset=final_df.columns[3:]))
         else:
-            st.warning("कोई स्टॉक इन फिल्टर्स में नहीं मिला। कृपया Accuracy या Return कम करके देखें।")
-
-
-
+            st.error("❌ इस समय चक्र में कोई स्टॉक फिट नहीं हुआ।")
