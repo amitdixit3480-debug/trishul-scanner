@@ -4,77 +4,79 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
-st.set_page_config(page_title="महाकाल साइकिल डिस्कवरी", layout="wide")
+st.set_page_config(page_title="महाकाल ऑरेकल 14.0", layout="wide")
 
-st.title("🔱 महाकाल: True Cycle Behavior Discovery")
-st.markdown("यह सिस्टम खुद खोजेगा कि स्टॉक में किस तारीख से किस तारीख तक 'N' दिनों की जादुई साइकिल है।")
+st.title("🔱 महाकाल: The Oracle (Cycle Discovery)")
 
-# --- इनपुट ---
-col1, col2, col3 = st.columns(3)
-with col1:
-    ticker = st.text_input("स्टॉक टिकर", "VADILALIND.NS").upper()
-with col2:
-    n_days = st.number_input("साइकिल की अवधि (N Days)", value=60)
-with col3:
-    min_win_rate = st.slider("Min Win Rate (%)", 70, 100, 80)
+# --- डिस्कवरी पैरामीटर्स ---
+with st.sidebar:
+    st.header("⚙️ फिल्टर सेटिंग्स")
+    ticker = st.text_input("स्टॉक टिकर", "BDL.NS").upper()
+    n_days = st.slider("साइकिल की अवधि (N Days)", 20, 120, 60)
+    min_win = st.slider("न्यूनतम जीत दर (%)", 70, 100, 90)
+    history_years = st.number_input("इतिहास (वर्ष)", 5, 20, 10)
 
-if st.button("🚩 खोज शुरू करें (Discovery Mode)"):
+if st.button("🚩 ब्रह्मांडीय चक्र की खोज शुरू करें"):
     try:
-        with st.spinner('हजारों संभावनाओं का मिलान किया जा रहा है...'):
-            # 1. डेटा लोड करना
-            data = yf.download(ticker, period="12y", interval="1d", auto_adjust=True, progress=False)
-            if isinstance(data.columns, pd.MultiIndex):
-                data.columns = data.columns.get_level_values(0)
+        with st.spinner('गहन डेटा विश्लेषण चल रहा है...'):
+            data = yf.download(ticker, period=f"{history_years+2}y", interval="1d", auto_adjust=True, progress=False)
+            if isinstance(data.columns, pd.MultiIndex): data.columns = data.columns.get_level_values(0)
             
-            # 2. साइकिल खोजने का लॉजिक
-            # हम साल के हर दिन (1 से 365) को टेस्ट करेंगे कि क्या वहां से N दिनों की साइकिल बन रही है
-            discovery_results = []
-            
-            # साल के पहले 300 दिनों को स्टार्ट डेट मानकर टेस्ट करना
-            for start_day_of_year in range(1, 366 - n_days, 5): # 5-5 दिन के गैप पर चेक करेंगे (तेजी के लिए)
-                wins = 0
-                total_years = 0
-                avg_return = 0
-                returns_by_year = {}
-
-                # पिछले 10 सालों में इस 'विंडो' को चेक करना
-                for yr in range(datetime.now().year - 10, datetime.now().year):
+            discovery = []
+            # साल के हर 3 दिन के अंतराल पर चेक करना (बारीकी के लिए)
+            for start_day in range(1, 366 - n_days, 3):
+                rets = []
+                drawdowns = []
+                
+                for yr in range(datetime.now().year - history_years, datetime.now().year):
                     try:
-                        # साल के उस विशेष दिन की तारीख निकालना
-                        base_date = datetime(yr, 1, 1) + timedelta(days=start_day_of_year)
-                        sd = data.index.asof(base_date)
-                        ed = data.index.asof(base_date + timedelta(days=n_days))
+                        base = datetime(yr, 1, 1) + timedelta(days=start_day)
+                        sd = data.index.asof(base)
+                        ed = data.index.asof(base + timedelta(days=n_days))
                         
                         if sd and ed and sd != ed:
-                            ret = ((data.loc[ed]['Close'] - data.loc[sd]['Open']) / data.loc[sd]['Open']) * 100
-                            avg_return += ret
-                            total_years += 1
-                            if ret > 0: wins += 1
+                            window = data.loc[sd:ed]
+                            # रिटर्न कैलकुलेशन
+                            r = ((window.iloc[-1]['Close'] - window.iloc[0]['Open']) / window.iloc[0]['Open']) * 100
+                            rets.append(r)
+                            # ड्राडाउन (साइकिल के दौरान रिस्क)
+                            dd = ((window['Low'].min() - window.iloc[0]['Open']) / window.iloc[0]['Open']) * 100
+                            drawdowns.append(dd)
                     except: continue
                 
-                if total_years > 0:
-                    win_rate = (wins / total_years) * 100
-                    if win_rate >= min_win_rate:
-                        start_date_sample = (datetime(2024, 1, 1) + timedelta(days=start_day_of_year)).strftime("%d-%b")
-                        end_date_sample = (datetime(2024, 1, 1) + timedelta(days=start_day_of_year + n_days)).strftime("%d-%b")
-                        discovery_results.append({
-                            "Start Date": start_date_sample,
-                            "End Date": end_date_sample,
-                            "Win Rate": f"{int(win_rate)}%",
-                            "Avg Return": round(avg_return/total_years, 2),
-                            "Years Tested": total_years
+                if len(rets) >= history_years - 2:
+                    win_rate = (sum(1 for x in rets if x > 0) / len(rets)) * 100
+                    if win_rate >= min_win:
+                        s_dt = (datetime(2024, 1, 1) + timedelta(days=start_day)).strftime("%d-%b")
+                        e_dt = (datetime(2024, 1, 1) + timedelta(days=start_day + n_days)).strftime("%d-%b")
+                        
+                        discovery.append({
+                            "Start": s_dt,
+                            "End": e_dt,
+                            "Win %": f"{int(win_rate)}%",
+                            "Avg Ret": round(np.mean(rets), 2),
+                            "Stability (SD)": round(np.std(rets), 2),
+                            "Worst Drawdown": round(min(drawdowns), 2),
+                            "Median Ret": round(np.median(rets), 2)
                         })
 
-            # 3. रिजल्ट्स दिखाना
-            if discovery_results:
-                df_res = pd.DataFrame(discovery_results).sort_values(by="Avg Return", ascending=False)
-                st.subheader(f"🚩 {ticker} के लिए सर्वश्रेष्ठ टाइम साइकिल्स")
-                st.dataframe(df_res.head(10), use_container_width=True)
+            if discovery:
+                res_df = pd.DataFrame(discovery).sort_values(by="Avg Ret", ascending=False)
                 
-                st.success("ऊपर दी गई तारीखें वे हैं जहाँ पिछले 10 सालों में स्टॉक ने सबसे ज्यादा बार पॉजिटिव रिटर्न दिया है।")
+                # विजुअल कार्ड्स
+                top = res_df.iloc[0]
+                c1, c2, c3 = st.columns(3)
+                c1.metric("सर्वश्रेष्ठ साइकिल", f"{top['Start']} से {top['End']}")
+                c2.metric("औसत लाभ", f"{top['Avg Ret']}%")
+                c3.metric("स्थिरता (SD)", top['Stability (SD)'], delta_color="inverse")
+
+                st.subheader("📊 टॉप डिस्कवर्ड साइकिल्स (Sorted by Profit)")
+                st.dataframe(res_df.head(15), use_container_width=True)
+                
+                st.info("💡 **Stability (SD)** जितना कम होगा, साइकिल उतनी ही भरोसेमंद होगी।")
             else:
-                st.warning("इस 'N' अवधि के लिए कोई मजबूत साइकिल नहीं मिली। कृपया अवधि बदलें।")
+                st.warning("कोई पुख्ता साइकिल नहीं मिली। पैरामीटर्स ढीले करें।")
 
     except Exception as e:
-        st.error(f"Error: {e}")
-                    
+        st.error(f"सिस्टम एरर: {e}")
+        
