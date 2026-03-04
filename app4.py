@@ -92,9 +92,13 @@ if st.button("🔱 Start Trishul Analysis"):
                     color = '#c6efce' if val > 0 else '#ffc7ce'
                     return f'background-color: {color}; color: black'
                 return ''
-
+selected_range = st.sidebar.date_input("Select Cycle Range", [today, future_date])
+# फिर यहाँ से दिन और महीना अलग कर लेंगे
+s_d, s_m = selected_range[0].day, selected_range[0].month
+e_d, e_m = selected_range[1].day, selected_range[1].month
             st.success(f"🎯 {len(results)} जैकपॉट स्टॉक्स मिले!")
             st.dataframe(res_df.style.applymap(color_returns, subset=res_df.columns[3:]))
         else:
             st.warning("कोई स्टॉक इन फिल्टर्स में नहीं मिला। कृपया Accuracy या Return कम करके देखें।")
+
 
