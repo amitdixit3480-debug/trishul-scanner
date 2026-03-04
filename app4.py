@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 
 # --- Page Config ---
-st.set_page_config(page_title="GCD Trishul Pro", layout="wide")
+st.set_page_config(page_title=" AMIT Trishul Pro", layout="wide")
 
 # --- Custom Styling (Visual Enhancement) ---
 st.markdown("""
@@ -97,3 +97,4 @@ if st.button("🔱 Start Trishul Analysis"):
             st.dataframe(res_df.style.applymap(color_returns, subset=res_df.columns[3:]))
         else:
             st.warning("कोई स्टॉक इन फिल्टर्स में नहीं मिला। कृपया Accuracy या Return कम करके देखें।")
+
