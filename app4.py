@@ -8,10 +8,26 @@ st.set_page_config(page_title="महाकाल त्रिशूल Pro Max"
 
 st.markdown("""
     <style>
-    .stButton>button { width: 100%; border-radius: 12px; height: 3.5em; background-image: linear-gradient(to right, #800000, #ff4500, #ff8c00); color: white; border: none; font-weight: bold; font-size: 18px; }
+    .stButton>button { 
+        width: 100%; 
+        border-radius: 12px; 
+        height: 3.5em; 
+        background-image: linear-gradient(to right, #800000, #ff4500, #ff8c00); 
+        color: white; 
+        border: none; 
+        font-weight: bold; 
+        font-size: 18px; 
+    }
     .stDataFrame { border: 2px solid #ff4500; border-radius: 15px; }
     h1 { color: #ff4500; text-align: center; }
-    [data-testid="stDownloadButton"] > button { background-image: linear-gradient(to right, #1D976C, #93F9B9); color: black; border-radius: 20px; }
+    /* डाउनलोड बटन का रंग हरा */
+    div.stDownloadButton > button {
+        background-color: #28a745 !important;
+        color: white !important;
+        border-radius: 10px;
+        border: none;
+        height: 3em;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -21,24 +37,32 @@ st.title("🔱 महाकाल त्रिशूल: Universal Cycle Scanner
 N50 = "RELIANCE.NS, TCS.NS, INFY.NS, HDFCBANK.NS, ICICIBANK.NS, SBIN.NS, BHARTIARTL.NS, AXISBANK.NS, ITC.NS, KOTAKBANK.NS, LT.NS, MARUTI.NS, SUNPHARMA.NS, TITAN.NS, TATAMOTORS.NS, TATASTEEL.NS, NTPC.NS, M&M.NS, HCLTECH.NS, ASIANPAINT.NS"
 N100 = N50 + ", ADANIENT.NS, ADANIPORTS.NS, BPCL.NS, COALINDIA.NS, HINDALCO.NS, IOC.NS, JSWSTEEL.NS, ONGC.NS, POWERGRID.NS, ULTRACEMCO.NS"
 
-if 'current_list' not in st.session_state: st.session_state.current_list = N50
+if 'current_list' not in st.session_state: 
+    st.session_state.current_list = N50
 
 col1, col2, col3 = st.columns(3)
 if col1.button("🕉️ NIFTY 50"): st.session_state.current_list = N50
 if col2.button("🔱 NIFTY 100"): st.session_state.current_list = N100
 if col3.button("🔥 NIFTY 500"): st.session_state.current_list = N100 + ", RVNL.NS, IRFC.NS, ZOMATO.NS, YESBANK.NS, SUZLON.NS"
 
-stocks_input = st.text_area("स्टॉक लिस्ट (यहां नाम बदलें या जोड़ें)", value=st.session_state.current_list, height=100)
+stocks_input = st.text_area("स्टॉक लिस्ट (Search or Edit)", value=st.session_state.current_list, height=100)
 
 with st.sidebar:
     st.header("⚙️ महाकाल सेटिंग्स")
     # डायनेमिक कैलेंडर
     date_range = st.date_input("इच्छा अनुसार चक्र चुनें", [datetime(2026, 3, 1), datetime(2026, 4, 20)], format="DD/MM/YYYY")
-    if len(date_range) == 2:
-        s_d, s_m = date_range[0].day, date_range[0].month
-        e_d, e_m = date_range[1].day, date_range[1].month
-    else: st.stop()
     
+    if isinstance(date_range, list) or isinstance(date_range, tuple):
+        if len(date_range) == 2:
+            s_d, s_m = date_range[0].day, date_range[0].month
+            e_d, e_m = date_range[1].day, date_range[1].month
+        else:
+            st.warning("कृपया कैलेंडर में 'Start' और 'End' दोनों तारीखें चुनें।")
+            st.stop()
+    else:
+        st.stop()
+    
+    st.divider()
     min_acc = st.slider("Min Accuracy %", 0, 100, 70)
     min_ret = st.slider("Min Avg Return %", 0, 20, 3)
 
@@ -53,6 +77,8 @@ if st.button("🚩 महाकाल त्रिशूल विश्ले�
         for ticker in tickers:
             try:
                 df = all_data[ticker] if len(tickers) > 1 else all_data
+                if df.empty: continue
+                
                 wins, yearly_data = 0, {}
                 for yr in range(curr_yr - 10, curr_yr):
                     try:
@@ -88,5 +114,14 @@ if st.button("🚩 महाकाल त्रिशूल विश्ले�
             # टेबल डिस्प्ले
             st.dataframe(final_df.style.applymap(color_rets, subset=final_df.columns[3:]).format(precision=2))
             
-            # --- डाउनलोड बटन शीट ---
-            csv_data = final_df.to_csv(index=
+            # --- डाउनलोड बटन (Fix: सभी ब्रैकेट बंद हैं) ---
+            csv_data = final_df.to_csv(index=False).encode('utf-8')
+            
+            st.download_button(
+                label="📥 महाकाल त्रिशूल एक्सेल शीट डाउनलोड करें",
+                data=csv_data,
+                file_name=f"Mahakal_Report_{s_d}_{s_m}.csv",
+                mime='text/csv'
+            )
+        else:
+            st.error("❌ कोई स्टॉक इन फिल्टर्स में नहीं मिला।")
