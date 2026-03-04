@@ -3,133 +3,115 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime
 
-# --- पेज कॉन्फ़िगरेशन ---
-st.set_page_config(page_title="महाकाल त्रिशूल: 500 स्टॉक एडिशन", layout="wide")
+# --- पेज सेटिंग ---
+st.set_page_config(page_title="महाकाल त्रिशूल: Cycle Master PRO", layout="wide")
 
+# --- एडवांस्ड स्टाइलिंग (इमेज मैचिंग) ---
 st.markdown("""
     <style>
-    .stButton>button { width: 100%; border-radius: 12px; height: 3.5em; background-image: linear-gradient(to right, #4b6cb7, #182848); color: white; font-weight: bold; font-size: 16px; border: none; }
-    .stDataFrame { border: 2px solid #182848; border-radius: 15px; }
-    h1 { color: #182848; text-align: center; font-family: 'Arial Black'; }
-    div.stDownloadButton > button { background-color: #28a745 !important; color: white !important; }
+    .event-table { width: 100%; border-collapse: collapse; font-family: sans-serif; margin-bottom: 20px; }
+    .event-header { background-color: #df80ff; color: black; font-weight: bold; text-align: center; border: 1px solid black; }
+    .event-cell { background-color: #ffffcc; border: 1px solid black; text-align: center; padding: 8px; font-weight: 500; }
+    .fund-header { background-color: #f2f2f2; font-weight: bold; padding: 10px; border-bottom: 2px solid black; }
+    .stat-label { font-weight: bold; color: #333; }
+    .stat-val { color: #d35400; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🔱 महाकाल त्रिशूल: Universal Cycle Scanner (500 Stocks)")
+st.title("🔱 महाकाल त्रिशूल: Cycle & Fundamental Analyzer")
 
-# --- 500 स्टॉक्स की महा-लिस्ट (Chunks में विभाजित) ---
-# यहाँ आपकी दी हुई लिस्ट और बाकी Nifty 500 के स्टॉक्स का समावेश है
-FULL_500_LIST = [
-    "360ONE.NS", "3MINDIA.NS", "ABB.NS", "ACC.NS", "ACMESOLAR.NS", "AIAENG.NS", "APLAPOLLO.NS",
-    "AUBANK.NS", "AWL.NS", "AADHARHFC.NS", "AARTIIND.NS", "AAVAS.NS", "ABBOTINDIA.NS", "ACE.NS",
-    "ADANIENSOL.NS", "ADANIENT.NS", "ADANIGREEN.NS", "ADANIPORTS.NS", "ADANIPOWER.NS", "ATGL.NS",
-    "ABCAPITAL.NS", "ABFRL.NS", "ABREL.NS", "ABSLAMC.NS", "AEGISLOG.NS", "AFCONS.NS", "AFFLE.NS",
-    "AJANTPHARM.NS", "AKUMS.NS", "APLLTD.NS", "ALKEM.NS", "ALKYLAMINE.NS", "ALOKINDS.NS", "AMBER.NS", 
-    "AMBUJACEM.NS", "ANANDRATHI.NS", "ANANTRAJ.NS", "ANGELONE.NS", "APARINDS.NS", "APOLLOHOSP.NS", 
-    "APOLLOTYRE.NS", "APTUS.NS", "ASAHIINDIA.NS", "ASHOKLEY.NS", "ASIANPAINT.NS", "ASTERDM.NS", 
-    "ASTRAZEN.NS", "ASTRAL.NS", "ATUL.NS", "AUROPHARMA.NS", "DMART.NS", "AXISBANK.NS", "BAJAJ-AUTO.NS", 
-    "BAJFINANCE.NS", "BAJAJFINSV.NS", "BAJAJHLDNG.NS", "BALKRISIND.NS", "BALRAMCHIN.NS", "BANDHANBNK.NS", 
-    "BANKBARODA.NS", "BANKINDIA.NS", "BATAINDIA.NS", "BAYERCROP.NS", "BERGEPAINT.NS", "BEL.NS", 
-    "BHARATFORG.NS", "BHEL.NS", "BPCL.NS", "BHARTIARTL.NS", "BIOCON.NS", "BSOFT.NS", "BRITANNIA.NS", 
-    "CANBK.NS", "CESC.NS", "CGPOWER.NS", "CIPLA.NS", "COALINDIA.NS", "COFORGE.NS", "COLPAL.NS", 
-    "CROMPTON.NS", "CUMMINSIND.NS", "CYIENT.NS", "DABUR.NS", "DEEPAKFERT.NS", "DEEPAKNTR.NS", 
-    "DIVISLAB.NS", "DIXON.NS", "DRREDDY.NS", "EICHERMOT.NS", "EMAMILTD.NS", "ENDURANCE.NS", 
-    "ESCORTS.NS", "EXIDEIND.NS", "FEDERALBNK.NS", "GAIL.NS", "GLAXO.NS", "GLENMARK.NS", "GODFRYPHLP.NS", 
-    "GODREJAGRO.NS", "GODREJCP.NS", "GODREJIND.NS", "GODREJPROP.NS", "GRANULES.NS", "GRAPHITE.NS", 
-    "GRASIM.NS", "GUJGASLTD.NS", "HAVELLS.NS", "HCLTECH.NS", "HDFCAMC.NS", "HDFCBANK.NS", "HDFCLIFE.NS", 
-    "HEROMOTOCO.NS", "HINDALCO.NS", "HINDUNILVR.NS", "ICICIBANK.NS", "ICICIGI.NS", "ICICIPRULI.NS", 
-    "IDBI.NS", "IDFCFIRSTB.NS", "IEX.NS", "IGL.NS", "INDHOTEL.NS", "INDIACEM.NS", "INDIAMART.NS", 
-    "INDUSINDBK.NS", "INFY.NS", "IOC.NS", "IRCTC.NS", "ITC.NS", "JUBLFOOD.NS", "JSWSTEEL.NS", 
-    "JINDALSTEL.NS", "KOTAKBANK.NS", "LALPATHLAB.NS", "LT.NS", "LTI.NS", "LUPIN.NS", "M&M.NS", 
-    "MANAPPURAM.NS", "MARICO.NS", "MARUTI.NS", "MPHASIS.NS", "MRF.NS", "MUTHOOTFIN.NS", "NAM-INDIA.NS", 
-    "NATIONALUM.NS", "NAUKRI.NS", "NESTLEIND.NS", "NMDC.NS", "NTPC.NS", "OBEROIRLTY.NS", "ONGC.NS", 
-    "PAGEIND.NS", "PEL.NS", "PETRONET.NS", "PFC.NS", "PIDILITIND.NS", "PIIND.NS", "PNB.NS", 
-    "POWERGRID.NS", "PVRINOX.NS", "RBLBANK.NS", "RECLTD.NS", "RELIANCE.NS", "SAIL.NS", "SBIN.NS", 
-    "SHREECEM.NS", "SIEMENS.NS", "SRF.NS", "SUNPHARMA.NS", "SYNGENE.NS", "TATACHEM.NS", "TATACONSUM.NS", 
-    "TATAMOTORS.NS", "TATAPOWER.NS", "TATASTEEL.NS", "TCS.NS", "TECHM.NS", "TORNTPHARM.NS", "TRENT.NS", 
-    "TVSMOTOR.NS", "UBL.NS", "ULTRACEMCO.NS", "UPL.NS", "VOLTAS.NS", "WIPRO.NS", "YESBANK.NS", 
-    "ZEEL.NS", "ZYDUSLIFE.NS", "IRFC.NS", "RVNL.NS", "SJVN.NS", "NHPC.NS", "MAZDOCK.NS", "IREDA.NS"
-]
+# --- इनपुट सेक्शन ---
+col_in1, col_in2, col_in3 = st.columns([2,1,1])
+with col_in1:
+    ticker_input = st.text_input("स्टॉक टिकर डालें (जैसे: VADILALIND.NS)", "VADILALIND.NS")
+with col_in2:
+    entry_date_str = st.text_input("एंट्री डेट (DD-Mon)", "20-Jan")
+with col_in3:
+    exit_target_str = st.text_input("एग्जिट अनुमान", "1st Week of April")
 
-# --- इंडेक्स चयन ---
-st.subheader("📁 मार्केट यूनिवर्स चुनें")
-c1, c2, c3 = st.columns(3)
-
-if 'active_list' not in st.session_state:
-    st.session_state.active_list = ", ".join(FULL_500_LIST[:50])
-
-if c1.button("🕉️ TOP 50"): st.session_state.active_list = ", ".join(FULL_500_LIST[:50])
-if c2.button("🌟 TOP 200"): st.session_state.active_list = ", ".join(FULL_500_LIST[:200])
-if c3.button("🚩 FULL 500 STOCKS"): st.session_state.active_list = ", ".join(FULL_500_LIST)
-
-stocks_to_scan = st.text_area("Stocks to Analysis", value=st.session_state.active_list, height=150)
-
-# --- साइडबार सेटिंग्स ---
-with st.sidebar:
-    st.header("⚙️ स्कैन पैरामीटर्स")
-    date_range = st.date_input("चक्र अवधि (Date Range)", [datetime(2026, 3, 1), datetime(2026, 4, 20)], format="DD/MM/YYYY")
-    
-    if len(date_range) == 2:
-        s_d, s_m, e_d, e_m = date_range[0].day, date_range[0].month, date_range[1].day, date_range[1].month
-    else: st.stop()
-    
-    min_acc = st.slider("Min Accuracy %", 0, 100, 80)
-    min_ret = st.slider("Min Avg Return %", 0, 20, 5)
-
-# --- विश्लेषण इंजन ---
-if st.button("🚩 महाकाल त्रिशूल महा-स्कैन शुरू करें"):
-    tickers = [t.strip() for t in stocks_to_scan.split(',') if t.strip()]
-    
-    with st.spinner(f'महाकाल की कृपा से {len(tickers)} स्टॉक्स का विश्लेषण हो रहा है...'):
-        # डेटा को छोटे हिस्सों में डाउनलोड करना (Performance के लिए)
-        all_results = []
-        curr_yr = datetime.now().year
-        
-        # yfinance download
-        data = yf.download(tickers, period="12y", interval="1d", progress=False, group_by='ticker')
-        
-        for ticker in tickers:
-            try:
-                df = data[ticker] if len(tickers) > 1 else data
-                if df.empty: continue
-                
-                wins, history = 0, {}
-                for yr in range(curr_yr - 10, curr_yr):
-                    try:
-                        sd, ed = datetime(yr, s_m, s_d), datetime(yr, e_m, e_d)
-                        start_price = df.index.asof(sd)
-                        end_price = df.index.asof(ed)
-                        
-                        if start_price and end_price:
-                            ret = ((df.loc[end_price]['Close'] - df.loc[start_price]['Open']) / df.loc[start_price]['Open']) * 100
-                            history[str(yr)] = round(ret, 2)
-                            if ret > 0: wins += 1
-                    except: continue
-                
-                if history:
-                    accuracy = (wins / len(history)) * 100
-                    avg_return = sum(history.values()) / len(history)
+if st.button("🚩 ब्रह्मास्त्र स्कैन शुरू करें"):
+    try:
+        with st.spinner('डेटा प्रोसेस हो रहा है...'):
+            stock = yf.Ticker(ticker_input)
+            info = stock.info
+            hist = stock.history(period="12y")
+            
+            # --- 1. साइकिल एनालिसिस (इमेज जैसा टेबल) ---
+            st.subheader(f"📊 {ticker_input} ऐतिहासिक चक्र")
+            
+            day, mon_name = entry_date_str.split('-')
+            months_map = {"Jan":1,"Feb":2,"Mar":3,"Apr":4,"May":5,"Jun":6,"Jul":7,"Aug":8,"Sep":9,"Oct":10,"Nov":11,"Dec":12}
+            m_num = months_map[mon_name]
+            
+            html_cycle = '<table class="event-table"><tr class="event-header"><td>EVENT</td><td>Entry Date</td><td>Year</td><td>Exit/High</td><td>Return (%)</td><td>Weekend</td></tr>'
+            
+            curr_yr = datetime.now().year
+            returns = []
+            
+            for i, yr in enumerate(range(curr_yr-1, curr_yr-11, -1)):
+                try:
+                    sd = datetime(yr, m_num, int(day))
+                    ed = sd + pd.Timedelta(days=75) # 75 दिन का चक्र
                     
-                    if accuracy >= min_acc and avg_return >= min_ret:
-                        res = {"Stock": ticker.replace(".NS",""), "Win Rate": f"{int(accuracy)}%", "Avg Return": f"{round(avg_return,2)}%"}
-                        res.update(history)
-                        all_results.append(res)
-            except: continue
-
-        if all_results:
-            df_final = pd.DataFrame(all_results)
+                    s_idx = hist.index.asof(sd)
+                    e_idx = hist.index.asof(ed)
+                    
+                    p_start = hist.loc[s_idx]['Open']
+                    p_end = hist.loc[e_idx]['Close']
+                    ret = ((p_end - p_start) / p_start) * 100
+                    is_wknd = "YES" if sd.weekday() >= 5 else "NO"
+                    
+                    html_cycle += f'<tr><td class="event-cell">{i+1}</td><td class="event-cell">{entry_date_str}</td><td class="event-cell">{yr}</td><td class="event-cell">MID-APR</td><td class="event-cell">{ret:.2f}%</td><td class="event-cell">{is_wknd}</td></tr>'
+                    returns.append(ret)
+                except: continue
             
-            def style_cells(val):
-                if isinstance(val, (int, float)):
-                    color = '#c6efce' if val > 0 else '#ffc7ce'
-                    return f'background-color: {color}; color: black'
-                return ''
+            html_cycle += '</table>'
+            st.markdown(html_cycle, unsafe_allow_html=True)
 
-            st.success(f"🔱 कुल {len(all_results)} जैकपॉट स्टॉक्स मिले!")
-            st.dataframe(df_final.style.applymap(style_cells, subset=df_final.columns[3:]).format(precision=2))
+            # --- 2. मजबूत फंडामेंटल ऑटोमेशन (इमेज से बेहतर) ---
+            st.markdown("---")
+            f1, f2, f3 = st.columns([1.5, 1, 1.5])
             
-            # डाउनलोड रिपोर्ट
-            csv = df_final.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 500 स्टॉक जैकपॉट रिपोर्ट डाउनलोड करें", csv, "Mahakal_500_Report.csv", "text/csv")
-        else:
-            st.warning("कोई स्टॉक इन कठिन मापदंडों पर खरा नहीं उतरा।")
+            with f1:
+                st.markdown(f"""
+                <div style="border:1px solid black; padding:10px; background-color:#fff;">
+                    <div class="fund-header">GENERAL INFO</div>
+                    <p><b>Stock:</b> {info.get('longName', 'N/A')}</p>
+                    <p><b>Sector:</b> {info.get('sector', 'N/A')}</p>
+                    <p><b>Current Price:</b> ₹{info.get('currentPrice', 'N/A')}</p>
+                    <p><b>Market Cap:</b> ₹{info.get('marketCap', 0)//10**7} Cr.</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with f2:
+                # फॉरकास्ट और सेगमेंट
+                st.metric("FORECAST (Avg Target)", f"₹{info.get('targetMeanPrice', 'N/A')}")
+                st.info("SEGMENT: CASH")
+                acc_70 = sum(1 for r in returns if r > 0) / len(returns) * 100 if returns else 0
+                st.metric("HISTORICAL ACCURACY", f"{int(acc_70)}%")
+
+            with f3:
+                # इमेज वाला सटीक फंडामेंटल टेबल
+                pe = info.get('trailingPE', 0)
+                peg = info.get('pegRatio', 0)
+                roe = info.get('returnOnEquity', 0) * 100
+                de = info.get('debtToEquity', 0) / 100
+                icr = info.get('ebitda', 0) / (info.get('totalDebt', 1) * 0.08) # Estimating Interest Cover
+
+                st.markdown(f"""
+                <div style="border:2px solid black; padding:10px; border-radius:5px;">
+                    <div class="fund-header" style="background-color:#00cc66; color:white;">🔱 FUNDAMENTAL SCORECARD</div>
+                    <table style="width:100%; margin-top:10px;">
+                        <tr><td class="stat-label">P/E Ratio:</td><td class="stat-val">{pe:.2f}</td></tr>
+                        <tr><td class="stat-label">PEG Ratio:</td><td class="stat-val">{peg:.2f}</td></tr>
+                        <tr><td class="stat-label">ROE (%):</td><td class="stat-val">{roe:.2f}%</td></tr>
+                        <tr><td class="stat-label">Debt/Equity:</td><td class="stat-val">{de:.2f}</td></tr>
+                        <tr><td class="stat-label">Int. Coverage:</td><td class="stat-val">{icr:.2f}</td></tr>
+                        <tr><td class="stat-label">Industry PE:</td><td class="stat-val">{info.get('forwardPE', 'N/A')}</td></tr>
+                    </table>
+                </div>
+                """, unsafe_allow_html=True)
+
+    except Exception as e:
+        st.error(f"त्रुटि: {e}. कृपया टिकर (e.g. RELIANCE.NS) सही डालें।")
+        
