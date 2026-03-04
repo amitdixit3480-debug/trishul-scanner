@@ -77,4 +77,4 @@ if st.button("🚩 खोज शुरू करें (Discovery Mode)"):
 
     except Exception as e:
         st.error(f"Error: {e}")
-        
+                    
