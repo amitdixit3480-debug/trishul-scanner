@@ -2,107 +2,86 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
+import time
 
-# --- 1. पेज कॉन्फ़िगरेशन ---
-st.set_page_config(page_title="महाकाल त्रिशूल 7.0", layout="wide")
+# --- 1. पेज सेटिंग ---
+st.set_page_config(page_title="महाकाल त्रिशूल 9.0", layout="wide")
 
-# --- 2. CSS: विजुअल फिक्स ---
+# --- 2. CSS (इमेज जैसा लुक) ---
 st.markdown("""
     <style>
-    .event-table { width: 100%; border-collapse: collapse; border: 2px solid black; background-color: white; }
+    .event-table { width: 100%; border-collapse: collapse; border: 2px solid black; }
     .event-header { background-color: #df80ff !important; color: black !important; font-weight: bold; text-align: center; border: 1px solid black; }
     .event-cell { background-color: #ffffcc !important; border: 1px solid black; text-align: center; padding: 10px; font-weight: bold; color: black; }
-    .fail-cell { background-color: #ffcccc !important; border: 1px solid black; text-align: center; color: red !important; font-weight: bold; }
-    .stat-box { border: 2px solid #00cc66; border-radius: 10px; padding: 15px; background-color: white; color: black; }
+    .fail-cell { background-color: #ffcccc !important; border: 1px solid black; text-align: center; color: red !important; font-weight: bold; border: 1px solid black; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🔱 महाकाल त्रिशूल: Cycle Master 7.0 (Error Fixed)")
+st.title("🔱 महाकाल त्रिशूल: Cycle Master 9.0")
 
-# --- इनपुट सेक्शन ---
-col_in1, col_in2, col_in3 = st.columns(3)
-with col_in1:
+# --- इनपुट ---
+c1, c2, c3 = st.columns(3)
+with c1:
     ticker = st.text_input("स्टॉक टिकर (e.g. VADILALIND.NS)", "VADILALIND.NS").upper()
-with col_in2:
+with c2:
     entry_str = st.text_input("एंट्री डेट (उदा: 20-Jan)", "20-Jan")
-with col_in3:
+with c3:
     exit_label = st.text_input("एग्जिट अनुमान", "30-Apr")
 
-if st.button("🚩 ब्रह्मास्त्र स्कैन शुरू करें"):
+if st.button("🚩 गहरी डेटा खोज शुरू करें"):
     try:
-        with st.spinner('डेटा लोड हो रहा है...'):
-            # डेटा डाउनलोड
-            raw_data = yf.download(ticker, period="20y", interval="1d", progress=False)
+        with st.spinner('महाकाल की कृपा से सर्वर से डेटा खींचा जा रहा है... थोड़ा समय लग सकता है...'):
+            # --- सुधार: yf.download को 'auto_adjust=True' और 'threads=False' के साथ प्रयोग करें ---
+            # इससे डेटा आने की गारंटी बढ़ जाती है
+            raw_data = yf.download(ticker, period="max", interval="1d", auto_adjust=True, progress=False, threads=False)
             
-            if raw_data.empty:
-                st.error(f"क्षमा करें, {ticker} के लिए डेटा नहीं मिला।")
+            # डेटा आने तक थोड़ा इंतजार (Artificial delay for stability)
+            time.sleep(1) 
+
+            # मल्टी-इंडेक्स कॉलम को साफ करना
+            if isinstance(raw_data.columns, pd.MultiIndex):
+                raw_data.columns = raw_data.columns.get_level_values(0)
+
+            if raw_data.empty or len(raw_data) < 100:
+                st.error(f"❌ डेटा डाउनलोड नहीं हो पाया! {ticker} शायद गलत है या Yahoo Finance का सर्वर धीमा है। कृपया एक बार और दबाएं।")
             else:
-                stock_info = yf.Ticker(ticker).info
-                day, mon_name = entry_str.split('-')
+                st.success(f"✅ {len(raw_data)} दिनों का डेटा सफलतापूर्वक प्राप्त हुआ!")
+                
+                day_val, mon_name = entry_str.split('-')
                 months = {"Jan":1,"Feb":2,"Mar":3,"Apr":4,"May":5,"Jun":6,"Jul":7,"Aug":8,"Sep":9,"Oct":10,"Nov":11,"Dec":12}
                 m_idx = months[mon_name]
                 
-                html = '<table class="event-table"><tr class="event-header"><td>EVENT</td><td>Entry Date</td><td>Year</td><td>Exit/High</td><td>Return (%)</td><td>Status</td></tr>'
+                html = '<table class="event-table"><tr class="event-header"><td>EVENT</td><td>Entry</td><td>Year</td><td>Exit/High Date</td><td>Return (%)</td></tr>'
                 
-                results_list = []
-                current_year = datetime.now().year
+                results = []
+                curr_yr = datetime.now().year
                 
                 for i in range(1, 11):
-                    target_year = current_year - i
+                    yr = curr_yr - i
                     try:
-                        sd = datetime(target_year, m_idx, int(day))
-                        ed = sd + timedelta(days=95) # लगभग 3 महीने का चक्र
+                        sd = datetime(yr, m_idx, int(day_val))
+                        ed = sd + timedelta(days=100)
                         
-                        # --- ERROR FIX: Series comparison fix ---
-                        # हम Timestamp का उपयोग करके डेटा स्लाइस कर रहे हैं
-                        start_ts = pd.Timestamp(sd)
-                        end_ts = pd.Timestamp(ed)
-                        
-                        # डेटा को फिल्टर करने का सही तरीका
-                        cycle_df = raw_data.loc[start_ts:end_ts]
+                        # इंडेक्स को टोपोलॉजी के हिसाब से काटना
+                        mask = (raw_data.index >= pd.Timestamp(sd)) & (raw_data.index <= pd.Timestamp(ed))
+                        cycle_df = raw_data.loc[mask]
                         
                         if not cycle_df.empty:
-                            p_open = cycle_df.iloc[0]['Open']
-                            p_high = cycle_df['Close'].max()
+                            p_open = float(cycle_df.iloc[0]['Open'])
+                            p_high = float(cycle_df['Close'].max())
                             ret = ((p_high - p_open) / p_open) * 100
-                            results_list.append(ret)
+                            results.append(ret)
                             
-                            high_date = cycle_df['Close'].idxmax().strftime("%d-%b")
-                            
-                            html += f'<tr><td class="event-cell">{i}</td><td class="event-cell">{entry_str}</td><td class="event-cell">{target_year}</td><td class="event-cell">{high_date}</td><td class="event-cell">{ret:.2f}%</td><td class="event-cell">OK</td></tr>'
+                            high_dt = cycle_df['Close'].idxmax().strftime("%d-%b")
+                            html += f'<tr><td class="event-cell">{i}</td><td class="event-cell">{entry_str}</td><td class="event-cell">{yr}</td><td class="event-cell">{high_dt}</td><td class="event-cell">{ret:.2f}%</td></tr>'
                         else:
-                            html += f'<tr><td class="event-cell">{i}</td><td class="event-cell">{entry_str}</td><td class="event-cell">{target_year}</td><td class="fail-cell">NO DATA</td><td class="fail-cell">-</td><td class="event-cell">-</td></tr>'
-                    except Exception:
-                        html += f'<tr><td class="event-cell">{i}</td><td class="event-cell">{entry_str}</td><td class="event-cell">{target_year}</td><td class="fail-cell">FAIL</td><td class="fail-cell">FAIL</td><td class="event-cell">-</td></tr>'
+                            html += f'<tr><td class="event-cell">{i}</td><td class="event-cell">{entry_str}</td><td class="event-cell">{yr}</td><td class="fail-cell">NO DATA</td><td class="fail-cell">0.00%</td></tr>'
+                    except:
+                        html += f'<tr><td class="event-cell">{i}</td><td class="event-cell">{entry_str}</td><td class="event-cell">{yr}</td><td class="fail-cell">FAIL</td><td class="fail-cell">FAIL</td></tr>'
                 
                 html += '</table>'
                 st.markdown(html, unsafe_allow_html=True)
-
-                # --- फंडामेंटल स्कोरकार्ड ---
-                st.markdown("---")
-                f1, f2 = st.columns(2)
-                with f1:
-                    accuracy_str = "N/A"
-                    if len(results_list) > 0:
-                        accuracy_str = f"{(sum(1 for r in results_list if r > 0) / len(results_list) * 100):.0f}%"
-                    
-                    st.markdown(f"""
-                    <div class="stat-box">
-                        <h3 style='color:#0066cc;'>📊 Cycle Analysis</h3>
-                        <p><b>Stock:</b> {stock_info.get('longName', ticker)}</p>
-                        <p><b>Historical Accuracy:</b> {accuracy_str}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                with f2:
-                    st.markdown(f"""
-                    <div class="stat-box">
-                        <h3 style='color:#00cc66;'>🔱 Fundamentals</h3>
-                        <p>PE: {stock_info.get('trailingPE', 0):.2f} | ROE: {stock_info.get('returnOnEquity', 0)*100:.2f}%</p>
-                        <p>Debt/Eq: {stock_info.get('debtToEquity', 0)/100:.2f}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-    except Exception as e:
-        st.error(f"क्रिटिकल एरर: {e}")
                 
+    except Exception as e:
+        st.error(f"सिस्टम अलर्ट: {e}")
+                    
